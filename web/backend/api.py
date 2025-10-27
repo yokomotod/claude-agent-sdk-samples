@@ -51,10 +51,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
                     if isinstance(response_message, AssistantMessage):
                         for i, block in enumerate(response_message.content):
-                            if isinstance(block, TextBlock):
-                                block_data = asdict(block)
-                                block_data["type"] = type(block).__name__
-                                data["content"][i] = block_data
+                            block_data = asdict(block)
+                            block_data["type"] = type(block).__name__
+                            data["content"][i] = block_data
 
                     await websocket.send_json(data)
 

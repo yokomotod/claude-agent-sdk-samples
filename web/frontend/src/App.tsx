@@ -2,14 +2,28 @@ import { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-type UserMessage = { type: "UserMessage"; content: string };
+type UserMessage = {
+  type: "UserMessage";
+  content:
+    | string
+    | {
+        type: string;
+        content?: string | unknown;
+        is_error?: boolean | null;
+      }[];
+};
+
 type AssistantMessage = {
   type: "AssistantMessage";
   content: {
     type: string;
     text?: string;
+    thinking?: string;
+    name?: string;
+    input?: unknown;
   }[];
 };
+
 type Message = UserMessage | AssistantMessage;
 
 function useChat() {
@@ -34,12 +48,14 @@ function useChat() {
       const data = JSON.parse(event.data);
       console.log("[WebSocket] Received:", data);
 
-      if (data.type === "AssistantMessage") {
-        setMessages((prev) => [...prev, data]);
-      }
-
-      if (data.type === "ResultMessage") {
-        setIsLoading(false);
+      switch (data.type) {
+        case "UserMessage":
+        case "AssistantMessage":
+          setMessages((prev) => [...prev, data]);
+          break;
+        case "ResultMessage":
+          setIsLoading(false);
+          break;
       }
     };
 
@@ -86,20 +102,113 @@ function useChat() {
   return { messages, input, setInput, isLoading, isConnected, sendMessage };
 }
 
+function UserMessageItem({ message }: { message: UserMessage }) {
+  if (typeof message.content === "string") {
+    return (
+      <div className="p-3 rounded-lg whitespace-pre-wrap text-sm bg-gray-100 text-gray-800 ml-12 border-l-4 border-gray-400">
+        {message.content}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 ml-12">
+      {message.content.map((block, blockIdx) => {
+        if (typeof block.content === "string") {
+          return (
+            <div
+              key={blockIdx}
+              className={`p-3 rounded-lg text-sm border-l-4 ${
+                block.is_error
+                  ? "bg-red-50 text-red-800 border-red-400"
+                  : "bg-amber-50 text-amber-800 border-amber-400"
+              }`}
+            >
+              <div className="prose prose-sm max-w-none whitespace-pre-wrap">
+                {block.content}
+              </div>
+            </div>
+          );
+        }
+
+        // JSON content (tool result)
+        return (
+          <div
+            key={blockIdx}
+            className={`p-3 rounded-lg text-sm border-l-4 ${
+              block.is_error
+                ? "bg-red-50 text-red-800 border-red-400"
+                : "bg-amber-50 text-amber-800 border-amber-400"
+            }`}
+          >
+            <div className="font-semibold mb-1 text-xs text-amber-600">
+              📋 Tool Result
+            </div>
+            <pre className="text-xs bg-amber-100 p-2 rounded overflow-x-auto">
+              {JSON.stringify(block.content, null, 2)}
+            </pre>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function AgentMessageItem({ message }: { message: AssistantMessage }) {
   return (
-    <div
-      className={`p-3 rounded-lg text-sm bg-cyan-50 text-cyan-800 border-l-4 border-cyan-400`}
-    >
-      {message.content
-        .filter(({ type }) => type === "TextBlock")
-        .map((block, blockIdx) => (
-          <div key={blockIdx} className="prose prose-sm max-w-none">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {block.text}
-            </ReactMarkdown>
-          </div>
-        ))}
+    <div className="space-y-2">
+      {message.content.map((block, blockIdx) => {
+        if (block.type === "TextBlock") {
+          return (
+            <div
+              key={blockIdx}
+              className="p-3 rounded-lg text-sm bg-cyan-50 text-cyan-800 border-l-4 border-cyan-400"
+            >
+              <div className="prose prose-sm max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {block.text}
+                </ReactMarkdown>
+              </div>
+            </div>
+          );
+        }
+
+        if (block.type === "ThinkingBlock") {
+          return (
+            <div
+              key={blockIdx}
+              className="p-3 rounded-lg text-sm bg-purple-50 text-purple-800 border-l-4 border-purple-400"
+            >
+              <div className="font-semibold mb-1 text-xs text-purple-600">
+                💭 Thinking
+              </div>
+              <div className="prose prose-sm max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {block.thinking}
+                </ReactMarkdown>
+              </div>
+            </div>
+          );
+        }
+
+        if (block.type === "ToolUseBlock") {
+          return (
+            <div
+              key={blockIdx}
+              className="p-3 rounded-lg text-sm bg-amber-50 text-amber-800 border-l-4 border-amber-400"
+            >
+              <div className="font-semibold mb-1 text-xs text-amber-600">
+                🔧 Tool: {block.name}
+              </div>
+              <pre className="text-xs bg-amber-100 p-2 rounded overflow-x-auto">
+                {JSON.stringify(block.input, null, 2)}
+              </pre>
+            </div>
+          );
+        }
+
+        return null;
+      })}
     </div>
   );
 }
@@ -112,7 +221,7 @@ function App() {
     <div className="h-[100dvh] bg-gray-50 flex flex-col">
       <header className="bg-white border-b border-gray-200 flex-shrink-0">
         <div className="px-4 py-3 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-gray-900">Claude Code Web</h1>
+          <h1 className="text-xl font-bold text-gray-900">Local Claude Code on the Web</h1>
           <div className="flex items-center gap-2">
             <div
               className={`w-2 h-2 rounded-full ${
@@ -129,12 +238,7 @@ function App() {
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {messages.map((msg, idx) =>
           msg.type === "UserMessage" ? (
-            <div
-              key={idx}
-              className="p-3 rounded-lg whitespace-pre-wrap text-sm bg-gray-100 text-gray-800 ml-12 border-l-4 border-gray-400"
-            >
-              {msg.content}
-            </div>
+            <UserMessageItem key={idx} message={msg} />
           ) : (
             <AgentMessageItem key={idx} message={msg} />
           ),
