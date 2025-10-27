@@ -3,7 +3,7 @@ name = "claude-code-sdk-samples-web-backend"
 version = "0.1.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "claude-code-sdk>=0.0.14",
+    "claude-agent-sdk>=0.1.5",
     "fastapi>=0.116.1",
     "uvicorn[standard]>=0.35.0",
 ]

@@ -1,12 +1,12 @@
 import readline  # for better input
 
 import anyio
-from claude_code_sdk import (
+from claude_agent_sdk import (
     AssistantMessage,
     SystemMessage,
     TextBlock,
     query,
-    ClaudeCodeOptions,
+    ClaudeAgentOptions,
 )
 
 
@@ -20,7 +20,9 @@ async def main():
         if not user_input.strip():
             continue
 
-        options = ClaudeCodeOptions(
+        options = ClaudeAgentOptions(
+            system_prompt={"type": "preset", "preset": "claude_code"},
+            setting_sources=["user", "project", "local"],
             permission_mode="bypassPermissions",  # Caution!
             resume=last_session_id,  # note: must resume since it launches new `claude -p` process every time
         )

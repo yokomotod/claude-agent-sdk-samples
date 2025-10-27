@@ -2,7 +2,7 @@ import json
 from collections.abc import AsyncIterator
 from dataclasses import asdict
 
-from claude_code_sdk import AssistantMessage, ClaudeCodeOptions, TextBlock, query
+from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, query
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -36,7 +36,9 @@ async def chat(
 async def generate_response(
     prompt: str, last_session_id: str | None
 ) -> AsyncIterator[str]:
-    options = ClaudeCodeOptions(
+    options = ClaudeAgentOptions(
+        system_prompt={"type": "preset", "preset": "claude_code"},
+        setting_sources=["user", "project", "local"],
         permission_mode="bypassPermissions",  # Caution!
         resume=last_session_id,
     )
